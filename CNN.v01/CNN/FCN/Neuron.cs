@@ -19,18 +19,26 @@ namespace CNN.v01.CNN.FCN
         public Signal Output;
         public float delta;
 
-        public float Calculate()
+        public Neuron(int link)
+        {
+            X = new Signal[link];
+            for (int i = 0; i < X.Length; i++)
+                X[i] = new Signal();
+            W = new float[link];
+            dWLast = new float[link];
+            Output = new Signal();
+        }
+        public void Calculate()
         {
             summa = 0;
             for (int i = 0; i < X.Length; i++)
                 summa += X[i].X * W[i];
             Output.X = Sigmoid();
-            return Output.X;
         }
 
         public float Sigmoid()
         {
-            return -1 + 2 / (1 + (float)Math.Exp(-summa));
+            return 1 / (1 + (float)Math.Exp(-summa));
         }
     }
 }

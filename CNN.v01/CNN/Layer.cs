@@ -11,24 +11,28 @@ namespace CNN.v01.CNN
         public Signal[] Input;
         public FeatureMap[] featureMap;
 
-        //public Layer(int featureMapSize) //число карт признаков в слое 
-        public Layer(int featureMapSize, int convolutionCoreSize, int poolingCoreSize)//PRAVKAA
+        public Layer(int featureMapSize, int sizeW, int convolutionCoreSize, int poolingCoreSize)//число карт признаков в слое
         {
             featureMap = new FeatureMap[featureMapSize];
-            for (int i = 0; i < featureMap.Length; i++)//PRAVKAA
-                featureMap[i] = new FeatureMap(convolutionCoreSize, poolingCoreSize, featureMap.Length);
+
+            for (int i = 0; i < featureMap.Length; i++)
+                featureMap[i] = new FeatureMap(convolutionCoreSize, poolingCoreSize, sizeW);
         }
+
+        public void CreateInput(int size, int i, int j)
+        {
+            Input = new Signal[size];
+            for (int k = 0; k < size; k++)
+                Input[k] = new Signal(i, j);
+        }
+
         /*
          * происходит вычисление всего слоя по всем картам признаков
          */
-        //public void Calculate(int convolutionCoreSize, int poolingCoreSize)
-        public void Calculate()//PRAVKAA
+        public void Calculate()
         {
-            for (int i = 0; i < featureMap.Length; i++)
-            {
-                //featureMap[i] = new FeatureMap(convolutionCoreSize, poolingCoreSize, featureMap.Length);
-                featureMap[i].Calculate(ref Input);
-            }                   
+            for (int i = 0; i < featureMap.Length; i++)      
+                featureMap[i].Calculate(ref Input);                   
         }
     }
 }

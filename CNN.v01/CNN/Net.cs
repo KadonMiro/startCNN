@@ -12,21 +12,31 @@ namespace CNN.v01.CNN
     {
         public Layer[] layers;
         public FCLayer[] fclayers;
+        public MiddleLayer middlelayer;
         public int[] poolingCoreSize;
         public int[] convolutionCoreSize;
         private float[] finalOutput;
+        bool firstStart;
 
 
-        public Net(ref int[] deepLayers, ref int[] convolutionCoreSize, ref int[] poolingCoreSize, int fullConnectedLayer) // глубина слоев в массиве
+        public Net(ref int[] deepLayers, ref int[] convolutionCoreSize, ref int[] poolingCoreSize, int fullConnectedLayer, ref bool firstStart) // глубина слоев в массиве
         {
+            this.firstStart = firstStart;
+            int answer = 3; // колличество выходов 
             layers = new Layer[deepLayers.Length];
+            int sizeW;
             for (int i = 0; i < layers.Length; i++)
-                layers[i] = new Layer(deepLayers[i], convolutionCoreSize[i], poolingCoreSize[i]);//PRAVKAA
+            {
+                if (i == 0) sizeW = 3;
+                else sizeW = deepLayers[i - 1];
+                layers[i] = new Layer(deepLayers[i], sizeW, convolutionCoreSize[i], poolingCoreSize[i]);
+            }
 
             this.poolingCoreSize = poolingCoreSize;
-        this.convolutionCoreSize = convolutionCoreSize;
+            this.convolutionCoreSize = convolutionCoreSize;
 
-        fclayers = new FCLayer[fullConnectedLayer];
+            fclayers = new FCLayer[fullConnectedLayer];
+            fclayers[fclayers.Length - 1] = new FCLayer(answer);
         }
 
         public void ConnectConvLayers(int i)
@@ -36,22 +46,37 @@ namespace CNN.v01.CNN
         }
 
         public void ConnectConvAndFCLayers()
-        {            
+        {
             /*
              * интеграция с полносвязными слоями
              * для каждого нейрона в слое формируется отдельный массив входов нв него,
              * это как-то неправильно должно использовать память системы, тк слишком много копий одинакового сигнала
              * хз как это работать должно
              */
-            int k = 0;
-            for (int j = 0; j < layers[layers.Length].featureMap.Length; j++)
-                for (int g = 0; g < layers[layers.Length].featureMap[j].Output.X.GetLength(0); g++)
-                    for (int h = 0; h < layers[layers.Length].featureMap[j].Output.X.GetLength(1); h++)
+            /*int k = 0;
+            for (int j = 0; j < layers[layers.Length - 1].featureMap.Length; j++)
+                for (int g = 0; g < layers[layers.Length - 1].featureMap[j].Output.X.GetLength(0); g++)
+                    for (int h = 0; h < layers[layers.Length - 1].featureMap[j].Output.X.GetLength(1); h++)
                     {
                         for(int n = 0; n < fclayers[0].neurons.Length; n++)
-                            fclayers[0].neurons[n].X[k].X = layers[layers.Length].featureMap[j].Output.X[g, h];
+                            fclayers[0].neurons[n].X[k].X = layers[layers.Length - 1].featureMap[j].Output.X[g, h];
                         k++;
                     }
+            */
+            int n = 0;
+            for (int j = 0; j < layers[layers.Length - 1].featureMap.Length; j++)
+                for (int g = 0; g < layers[layers.Length - 1].featureMap[j].Output.X.GetLength(0); g++)
+                    for (int h = 0; h < layers[layers.Length - 1].featureMap[j].Output.X.GetLength(1); h++)
+                    {
+                        middlelayer.Input[n].X = layers[layers.Length - 1].featureMap[j].Output.X[g, h];
+                        n++;
+                    }
+
+            middlelayer.Calculate();
+            for (int i = 0; i < fclayers[0].neurons.Length; i++)
+                for (int j = 0; j < fclayers[0].neurons.Length; j++)
+                    fclayers[0].neurons[j].X[i] = middlelayer.Output[i];
+
         }
 
         public void ConnectFCLayers(int i)
@@ -65,10 +90,11 @@ namespace CNN.v01.CNN
                     fclayers[i + 1].neurons[h].X[j] = fclayers[i].neurons[j].Output;
         }
 
-        public float[] Calculate(byte[,,] signals, ref bool firstStart)//PRAVKAA
+        public float[] Calculate(byte[,,] signals)
         {
-            if(firstStart)
+            if(firstStart)//том можно перенести в конструктор
             {
+                layers[0].CreateInput(signals.GetLength(0), signals.GetLength(1), signals.GetLength(2));
                 /* 
                  * задание рандомных весов
                  */
@@ -77,57 +103,66 @@ namespace CNN.v01.CNN
                 for (int i = 0; i < layers.Length; i++)
                     for (int j = 0; j < layers[i].featureMap.Length; j++)
                     {
-                        for (int g = 0; g < layers[i].featureMap[j].W[0].GetLength(0); g++)
-                            for (int h = 0; h < layers[i].featureMap[j].W[0].GetLength(1); h++)
-                                layers[i].featureMap[j].W[0][g, h] = weight.Next();
-
                         for (int k = 1; k < layers[i].featureMap[j].W.Length; k++)
-                            layers[i].featureMap[j].W[0] = layers[i].featureMap[j].W[k];
-                    }
-                //PRAVKAA
-                //PRAVKAA
-                //PRAVKAA
+                            for (int g = 0; g < layers[i].featureMap[j].W[k].GetLength(0); g++)
+                                for (int h = 0; h < layers[i].featureMap[j].W[k].GetLength(1); h++)
+                                {
+                                    layers[i].featureMap[j].W[k][g, h] = weight.Next(-5, 5);
+                                    layers[i].featureMap[j].W[k][g, h] /= 10;
+                                }
 
+                        //for (int k = 1; k < layers[i].featureMap[j].W.Length; k++)
+                          //  layers[i].featureMap[j].W[k] = layers[i].featureMap[j].W[0];
+                    }
             }
             /*
              * подаем на вход первого слоя сигналы
             */
-            for (int i = 0; i < signals.GetLength(0); i++)
-                for (int j = 0; j < signals.GetLength(1); j++)
-                    layers[0].Input[0].X[i, j] = signals[0 , i, j];// потом нужно будет изменить 0 !!!!! PRAVKAA
-
+            for (int n = 0; n < signals.GetLength(0); n++)
+                for (int i = 0; i < signals.GetLength(1); i++)
+                    for (int j = 0; j < signals.GetLength(2); j++)
+                    {
+                        layers[0].Input[n].X[i, j] = signals[n, i, j];// потом нужно будет изменить 0 !!!!!
+                        layers[0].Input[n].X[i, j] /= 255;
+                    }
             /*
              * блок вычисления сверточных слоев
              */
             for (int i = 0; i < layers.Length - 1; i++)
             {
-                //layers[i].Calculate(convolutionCoreSize[i], poolingCoreSize[i]);
-                layers[i].Calculate();//PRAVKAA
+                layers[i].Calculate();
+                if (firstStart)
+                    layers[i + 1].CreateInput(layers[i].featureMap.Length, layers[i].featureMap[0].Output.X.GetLength(0), layers[i].featureMap[0].Output.X.GetLength(1));
                 ConnectConvLayers(i);
             }
             /*
              * определяю количествво нейронов в полносвязных слоях, кроме выходного
              */
-            //layers[layers.Length].Calculate(convolutionCoreSize[convolutionCoreSize.Length], poolingCoreSize[poolingCoreSize.Length]);
-            layers[layers.Length].Calculate();//PRAVKAA
+            layers[layers.Length - 1].Calculate();
             int neuronsSize = 0;
-            for (int j = 0; j < layers[layers.Length].featureMap.Length; j++)
-                for (int g = 0; g < layers[layers.Length].featureMap[j].Output.X.GetLength(0); g++)
-                    for (int h = 0; h < layers[layers.Length].featureMap[j].Output.X.GetLength(1); h++)
+            for (int j = 0; j < layers[layers.Length - 1].featureMap.Length; j++)
+                for (int g = 0; g < layers[layers.Length - 1].featureMap[j].Output.X.GetLength(0); g++)
+                    for (int h = 0; h < layers[layers.Length - 1].featureMap[j].Output.X.GetLength(1); h++)
                         neuronsSize++;
-            for (int i = 0; i < fclayers.Length - 1; i++)
-                fclayers[i] = new FCLayer(neuronsSize);
-
-            if (firstStart)//PRAVKAA
+            if (firstStart)
             {
+                middlelayer = new MiddleLayer(neuronsSize);
+                for (int i = 0; i < fclayers.Length - 1; i++)
+                {
+                    fclayers[i] = new FCLayer(neuronsSize);
+                    fclayers[i].CreateInput(neuronsSize);
+                }
+                fclayers[fclayers.Length - 1].CreateInput(neuronsSize);
+            
                 Random weight = new Random();
                 for (int i = 0; i < fclayers.Length; i++)
                     for (int j = 0; j < fclayers[i].neurons.Length; j++)
                         for (int k = 0; k < fclayers[i].neurons[j].W.Length; k++)
-                            fclayers[i].neurons[j].W[i] = weight.Next();
-
-                firstStart = false;
-            }//PRAVKAA
+                        {
+                                fclayers[i].neurons[j].W[k] = weight.Next(-5, 5);
+                                fclayers[i].neurons[j].W[k] /= 10;
+                        }
+            }
 
             ConnectConvAndFCLayers();
             /*
@@ -141,16 +176,17 @@ namespace CNN.v01.CNN
             /*
             * блок вычисления выходного слоя
             */
-            finalOutput = new float[fclayers[fclayers.Length].neurons.Length];
-            fclayers[fclayers.Length].Calculate();
+            if (firstStart)
+                finalOutput = new float[fclayers[fclayers.Length - 1].neurons.Length];
+            fclayers[fclayers.Length - 1].Calculate();
 
             for (int i = 0; i < finalOutput.Length; i++)
-                finalOutput[i] = fclayers[fclayers.Length].neurons[i].Output.X;
+                finalOutput[i] = fclayers[fclayers.Length - 1].neurons[i].Output.X;
 
             return finalOutput;
         }
 
-        public void DeepLerning(float[] trueOutput, float stepLerning, float miu)
+        public float DeepLerning(float[] trueOutput, float stepLerning, float miu)
         {
             float error = 0; // среднеквадратичная ошибка
             float GRAD = 0, dW;
@@ -160,34 +196,45 @@ namespace CNN.v01.CNN
             // вычисление error; сделать с помощью локальной функции
             for (int i = 0; i < finalOutput.Length; i++)
                 error += (float)Math.Pow((trueOutput[i] - finalOutput[i]), 2) / 2;
-            //error = error / 2;
-
             /*
              * расчет дельты для выходного слоя
              */
             for (int i = 0; i < finalOutput.Length; i++)
-                fclayers[fclayers.Length].neurons[i].delta = (trueOutput[i] - finalOutput[i]) * DerSigmoid(finalOutput[i]);
+                fclayers[fclayers.Length - 1].neurons[i].delta = (trueOutput[i] - finalOutput[i]) * DerSigmoid(finalOutput[i]);
             /*
              * изменение весов для внутренних полносвязных слоев
              */
-            for (int i = fclayers.Length - 1; i < 0; i--)
+            for (int i = fclayers.Length - 2; i > -1 ; i--)
                 for (int k = 0; k < fclayers[i].neurons.Length; k++)
                 {
                     for (int j = 0; j < fclayers[i + 1].neurons.Length; j++)
                     {
                         fclayers[i].neurons[k].delta += fclayers[i + 1].neurons[j].W[k] * fclayers[i + 1].neurons[j].delta;
 
-                        GRAD = -fclayers[i + 1].neurons[j].delta * fclayers[i].neurons[k].Output.X;
+                        GRAD = fclayers[i + 1].neurons[j].delta * fclayers[i].neurons[k].Output.X;
                         dW = stepLerning * GRAD + miu * fclayers[i + 1].neurons[j].dWLast[k];
-                        fclayers[i + 1].neurons[j].W[k] += dW;
+                        fclayers[i + 1].neurons[j].W[k] -= dW;
                         fclayers[i + 1].neurons[j].dWLast[k] = dW;
                     }
                     fclayers[i].neurons[k].delta *= DerSigmoid(fclayers[i].neurons[k].Output.X);
                 }
+            for (int i = 0; i < fclayers[0].neurons.Length; i++)
+            {
+                for (int j = 0; j < fclayers[0].neurons.Length; j++)
+                {
+                    middlelayer.delta[i] += fclayers[0].neurons[j].W[i] * fclayers[0].neurons[j].delta;
+
+                    GRAD = fclayers[0].neurons[j].delta * middlelayer.Output[i].X;//fclayers[0].neurons[i].X[i].X;
+                    dW = stepLerning * GRAD + miu * fclayers[0].neurons[j].dWLast[i];
+                    fclayers[0].neurons[j].W[i] -= dW;
+                    fclayers[0].neurons[j].dWLast[i] = dW;
+                }
+                //middlelayer.delta[i] *= DerSigmoid(middlelayer.Output[i].X); 
+            }
             /*
              * проход по всем сверточным слоям
              */
-            for (int o = layers.Length; o < 0; o--)
+            for (int o = layers.Length  - 1; o >= 0; o--)
             {
                 for (int p = 0; p < layers[o].featureMap.Length; p++)
                 {
@@ -195,7 +242,7 @@ namespace CNN.v01.CNN
                         * вычисление дельты для слоя пуллинга
                         * в условии заложена связь мужду полносвязными и сверточными слоями
                         */
-                    if (o == layers.Length)
+                    if (o == layers.Length - 1)
                     {
                         int tempi = 0, tempj = 0;
 
@@ -205,7 +252,7 @@ namespace CNN.v01.CNN
                                     for (int j = 0; j < poolingCoreSize[o]; j++)
                                         if (layers[o].featureMap[p].deltaPool[tempi + i, tempj + j] == 1)
                                         {
-                                            layers[o].featureMap[p].deltaPool[tempi + i, tempj + j] = fclayers[0].neurons[inkr].delta;
+                                            layers[o].featureMap[p].deltaPool[tempi + i, tempj + j] = middlelayer.delta[inkr];//fclayers[0].neurons[inkr].delta;
                                             inkr++;
                                         }
                     }
@@ -230,11 +277,20 @@ namespace CNN.v01.CNN
                     for (int i = 0; i < temp.GetLength(0); i++)
                         for (int j = 0; j < temp.GetLength(1); j++)
                         {
-                            if ((i > zero && j > zero) && (i < (temp.GetLength(0) - zero) && (j < (temp.GetLength(1) - zero))))
+                            if ((i > zero - 1 && j > zero - 1) && (i < (temp.GetLength(0) - zero) && (j < (temp.GetLength(1) - zero))))
                                 temp[i, j] = layers[o].featureMap[p].deltaPool[i - zero, j - zero];
                             else temp[i, j] = 0;
                         }
-                    for (int cv = 0; cv < layers[o].featureMap.Length; cv++) // cv - число матриц свертки в каждой карте признаков
+                    /*
+                     * создаем экземпляры матриц дельт для сверточного слоя
+                     */
+                    if (firstStart)
+                    {
+                        layers[o].featureMap[p].deltaConv = new float[layers[o].featureMap[p].W.Length][,];
+                        for (int i = 0; i < layers[o].featureMap[p].deltaConv.Length; i++)
+                            layers[o].featureMap[p].deltaConv[i] = new float[temp.GetLength(0) - layers[o].featureMap[p].W[0].GetLength(0) + 1, temp.GetLength(1) - layers[o].featureMap[p].W[0].GetLength(1) + 1];
+                    }
+                    for (int cv = 0; cv < layers[o].featureMap[p].deltaConv.Length; cv++) // cv - число матриц свертки в каждой карте признаков
                     {
                         layers[o].featureMap[p].deltaConv[cv] = Convolution(temp, Rot180(layers[o].featureMap[p].W[cv]));
 
@@ -245,15 +301,15 @@ namespace CNN.v01.CNN
                     /*
                     * вычисление градиента и изменение весов
                     */
-                    float[,] GRADConv = new float[layers[o].featureMap[p].W.GetLength(0), layers[o].featureMap[p].W.GetLength(1)];
-                    for (int cv = 0; cv < layers[o].featureMap.Length; cv++)
+                    float[,] GRADConv = new float[layers[o].featureMap[p].W[0].GetLength(0), layers[o].featureMap[p].W[0].GetLength(1)];
+                    for (int cv = 0; cv < layers[o].Input.Length; cv++)
                     {
                         GRADConv = Rot180(Convolution(layers[o].Input[cv].X, Rot180(layers[o].featureMap[p].deltaPool)));
                         for (int i = 0; i < GRADConv.GetLength(0); i++)
                             for (int j = 0; j < GRADConv.GetLength(1); j++)
                             {
-                                dW = -stepLerning * GRADConv[i, j] + miu * layers[o].featureMap[p].dWLast[cv][i, j];
-                                layers[o].featureMap[p].W[cv][i, j] += dW;
+                                dW = stepLerning * GRADConv[i, j] + miu * layers[o].featureMap[p].dWLast[cv][i, j];
+                                layers[o].featureMap[p].W[cv][i, j] -= dW;
                                 layers[o].featureMap[p].dWLast[cv][i, j] = dW;
                             }
                     }
@@ -261,19 +317,21 @@ namespace CNN.v01.CNN
                 /*
                  * для каждого входа находим общую матрицу ошибки
                  */
-                for(int s = 0; s < layers[o].featureMap.Length; s++)
+                for(int s = 0; s < layers[o].Input.Length; s++)
                     for (int fm = 0; fm < layers[o].featureMap.Length; fm++)
-                        for (int i =0; i < layers[o].featureMap[fm].deltaConv[fm].GetLength(0); i++)
-                            for (int j = 0; j < layers[o].featureMap[fm].deltaConv[fm].GetLength(1); j++)
+                        for (int i =0; i < layers[o].featureMap[fm].deltaConv[s].GetLength(0); i++)
+                            for (int j = 0; j < layers[o].featureMap[fm].deltaConv[s].GetLength(1); j++)
                                 layers[o].featureMap[s].deltaConv[s][i, j] += layers[o].featureMap[fm].deltaConv[s][i, j];
             }
+            firstStart = false;
+            return error;
         }
         
         float[,] Rot180(float[,] temp)
         {
             float[,] buf = new float[temp.GetLength(0), temp.GetLength(1)];
-            for (int i = 0, h = temp.GetLength(0); i < temp.GetLength(0); i++, h--)
-                for (int j = 0, g = temp.GetLength(1); j < temp.GetLength(1); j++, g--)
+            for (int i = 0, h = temp.GetLength(0) - 1; i < temp.GetLength(0) - 1; i++, h--)
+                for (int j = 0, g = temp.GetLength(1) -  1; j < temp.GetLength(1) - 1; j++, g--)
                     buf[h, g] = temp[i, j];
             return buf;
         }
@@ -299,10 +357,14 @@ namespace CNN.v01.CNN
         float DerReLu(float i)
         {
             return 1 / (1 + (float)Math.Exp(-i));
+             
+            //return i *= 1 - i;
         }
-        
+
         float DerSigmoid(float i)
         {
+            //i = i == 0 ? 0.01f : i;
+            //i = i == 1 ? 0.99f : i;
             return i *= 1 - i;
         }
 

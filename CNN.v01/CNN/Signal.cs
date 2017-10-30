@@ -9,5 +9,10 @@ namespace CNN.v01.CNN
     class Signal
     {
         public float[,] X;
+
+        public Signal(int i, int j)
+        {
+            X = new float[i, j];
+        }
     }
 }

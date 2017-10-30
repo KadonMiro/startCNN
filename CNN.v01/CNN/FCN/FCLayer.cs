@@ -16,7 +16,13 @@ namespace CNN.v01.CNN.FCN
 
         public FCLayer(int n) // число нейронов в слое
         {
-            neurons = new Neuron[n];
+            neurons = new Neuron[n];      
+        }
+
+        public void CreateInput(int n)
+        {
+            for (int i = 0; i < neurons.Length; i++)
+                neurons[i] = new Neuron(n);
         }
 
         public void Calculate()
