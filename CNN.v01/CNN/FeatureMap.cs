@@ -41,8 +41,19 @@ namespace CNN.v01.CNN
         public void Convolution(ref Signal[] X)
         {
 
-            //int edgEffect = convolutionCoreSize / 2; //проверить инт
-            buffer = new Signal(X[0].X.GetLength(0) - convolutionCoreSize + 1, X[0].X.GetLength(1) - convolutionCoreSize + 1);
+            buffer = new Signal(X[0].X.GetLength(0), X[0].X.GetLength(1));
+
+            int zero = convolutionCoreSize - 1; //zero padding; преобразование конструктора
+            float[,,] temp = new float[X.Length, X[0].X.GetLength(0) + zero, X[0].X.GetLength(1) + zero];
+            for (int o = 0; o < X.Length; o++)
+                for (int i = 0; i < temp.GetLength(1); i++)
+                    for (int j = 0; j < temp.GetLength(2); j++)
+                    {
+                        if ((i >= zero - 1 && j >= zero - 1) && (i < (temp.GetLength(1) - zero + 1) && (j < (temp.GetLength(2) - zero + 1))))
+                            temp[o, i, j] = X[o].X[i - zero + 1, j - zero + 1];
+                        else temp[o, i, j] = 0;
+                    }
+
             for (int g = 0; g < buffer.X.GetLength(0); g++)
                 for (int h = 0; h < buffer.X.GetLength(1); h++)
                     {
@@ -50,7 +61,7 @@ namespace CNN.v01.CNN
                         for (int o = 0; o < X.Length; o++)
                             for (int i = 0; i < convolutionCoreSize; i++)
                                 for (int j = 0; j < convolutionCoreSize; j++)
-                                    summa += X[o].X[g + i, h + j] * W[o][i, j];
+                                    summa += temp[o, g + i, h + j] * W[o][i, j];
                         buffer.X[g, h] = ReLu();
                     }            
         }
